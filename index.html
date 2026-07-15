@@ -3,9 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>表示画像・ダミー画像 設定ツール v1.2</title>
+  <title>表示画像・ダミー画像 設定ツール v1.3</title>
   <style>
     * { box-sizing: border-box; }
+
     body {
       margin: 0;
       padding: 18px;
@@ -14,6 +15,7 @@
       color: #111827;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
+
     .app {
       width: min(100%, 860px);
       margin: auto;
@@ -22,8 +24,17 @@
       background: white;
       box-shadow: 0 16px 45px rgba(0,0,0,.12);
     }
-    h1 { margin: 0 0 8px; font-size: 28px; }
-    .lead { line-height: 1.7; }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(24px, 5vw, 34px);
+    }
+
+    .lead {
+      margin: 0 0 16px;
+      line-height: 1.7;
+    }
+
     .js-check {
       margin: 14px 0;
       padding: 12px;
@@ -32,19 +43,30 @@
       color: #991b1b;
       font-weight: 700;
     }
+
     .settings {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 14px;
     }
+
     .panel {
       padding: 15px;
       border: 1px solid #d1d5db;
       border-radius: 16px;
       background: #f9fafb;
     }
-    .panel h2 { margin: 0 0 10px; font-size: 18px; }
-    input[type="file"] { width: 100%; font-size: 16px; }
+
+    .panel h2 {
+      margin: 0 0 10px;
+      font-size: 18px;
+    }
+
+    input[type="file"] {
+      width: 100%;
+      font-size: 16px;
+    }
+
     .filename {
       min-height: 1.4em;
       margin: 9px 0 0;
@@ -52,7 +74,12 @@
       font-size: 14px;
       word-break: break-all;
     }
-    .preview-title { margin: 20px 0 8px; font-weight: 700; }
+
+    .preview-title {
+      margin: 20px 0 8px;
+      font-weight: 700;
+    }
+
     .preview {
       position: relative;
       display: grid;
@@ -72,6 +99,7 @@
       user-select: none;
       -webkit-touch-callout: none;
     }
+
     #displayImage {
       display: none;
       width: 100%;
@@ -82,6 +110,7 @@
       z-index: 1;
       pointer-events: none;
     }
+
     #dummyGuard {
       position: absolute;
       inset: 0;
@@ -90,7 +119,9 @@
       z-index: 2;
       opacity: .001;
       object-fit: contain;
+      -webkit-touch-callout: default;
     }
+
     #placeholder {
       position: absolute;
       inset: 0;
@@ -100,12 +131,14 @@
       text-align: center;
       color: #4b5563;
     }
+
     .actions {
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
       margin-top: 16px;
     }
+
     button {
       border: 0;
       border-radius: 999px;
@@ -115,21 +148,45 @@
       font: inherit;
       font-weight: 700;
     }
-    button:disabled { opacity: .4; }
+
+    button.secondary {
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    button:disabled {
+      opacity: .4;
+    }
+
     .status {
       min-height: 1.4em;
       margin-top: 12px;
       color: #2563eb;
       font-size: 14px;
+      line-height: 1.6;
     }
+
     .note {
       margin-top: 12px;
       color: #6b7280;
       font-size: 13px;
       line-height: 1.6;
     }
+
+    .ios-guide {
+      display: none;
+      margin-top: 14px;
+      padding: 14px;
+      border-radius: 14px;
+      background: #eff6ff;
+      color: #1e3a8a;
+      line-height: 1.7;
+    }
+
     @media (max-width: 680px) {
-      .settings { grid-template-columns: 1fr; }
+      .settings {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
@@ -171,15 +228,26 @@
       <button id="saveButton" type="button" onclick="saveDummy()" disabled>
         ダミー画像を保存
       </button>
-      <button id="resetButton" type="button" onclick="resetTool()">
+
+      <button id="openButton" type="button" onclick="openDummyImage()" disabled>
+        ダミー画像を表示
+      </button>
+
+      <button class="secondary" type="button" onclick="resetTool()">
         リセット
       </button>
+    </div>
+
+    <div id="iosGuide" class="ios-guide">
+      iPhoneでは画像を新しい画面で開きます。表示された画像を長押しして
+      「写真に保存」または共有ボタンから保存してください。
     </div>
 
     <p id="status" class="status"></p>
 
     <p class="note">
-      上部に「JavaScript動作中」と表示されない場合、その画面では画像プレビュー機能は動きません。
+      iPhoneではData URLの直接ダウンロードが動かない場合があるため、
+      Blob URLで画像を開く方式に変更しています。
     </p>
   </main>
 
@@ -187,10 +255,19 @@
     var displayDataUrl = "";
     var dummyDataUrl = "";
     var dummyFileName = "saved-image.png";
+    var currentDummyBlobUrl = "";
+
+    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
     document.getElementById("jsCheck").textContent = "JavaScript動作中";
     document.getElementById("jsCheck").style.background = "#dcfce7";
     document.getElementById("jsCheck").style.color = "#166534";
+
+    if (isIOS) {
+      document.getElementById("iosGuide").style.display = "block";
+      document.getElementById("saveButton").textContent = "ダミー画像を開いて保存";
+    }
 
     function handleDisplayImage(input) {
       var file = input.files && input.files[0];
@@ -205,10 +282,10 @@
         image.onload = function() {
           image.style.display = "block";
           document.getElementById("placeholder").style.display = "none";
-          document.getElementById("status").textContent = "表示画像を読み込みました。";
+          setStatus("表示画像を読み込みました。");
         };
         image.onerror = function() {
-          document.getElementById("status").textContent = "画像の表示に失敗しました。";
+          setStatus("表示画像の表示に失敗しました。");
         };
         image.src = displayDataUrl;
 
@@ -216,7 +293,7 @@
       };
 
       reader.onerror = function() {
-        document.getElementById("status").textContent = "画像を読み込めませんでした。";
+        setStatus("表示画像を読み込めませんでした。");
       };
 
       reader.readAsDataURL(file);
@@ -232,37 +309,98 @@
         dummyDataUrl = event.target.result;
         document.getElementById("dummyGuard").src = dummyDataUrl;
         document.getElementById("dummyName").textContent = file.name;
-        document.getElementById("saveButton").disabled = false;
 
         var parts = file.name.split(".");
         var ext = parts.length > 1 ? parts.pop() : "png";
         dummyFileName = "saved-image." + ext;
 
-        document.getElementById("status").textContent = "ダミー画像を読み込みました。";
+        document.getElementById("saveButton").disabled = false;
+        document.getElementById("openButton").disabled = false;
+
+        revokeDummyBlobUrl();
+        setStatus("ダミー画像を読み込みました。");
       };
 
       reader.onerror = function() {
-        document.getElementById("status").textContent = "ダミー画像を読み込めませんでした。";
+        setStatus("ダミー画像を読み込めませんでした。");
       };
 
       reader.readAsDataURL(file);
     }
 
+    function dataUrlToBlob(dataUrl) {
+      var parts = dataUrl.split(",");
+      var header = parts[0];
+      var base64 = parts[1];
+      var mimeMatch = header.match(/data:(.*?);base64/);
+      var mimeType = mimeMatch ? mimeMatch[1] : "image/png";
+      var binary = atob(base64);
+      var bytes = new Uint8Array(binary.length);
+
+      for (var i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+
+      return new Blob([bytes], { type: mimeType });
+    }
+
+    function getDummyBlobUrl() {
+      if (!dummyDataUrl) return "";
+
+      if (!currentDummyBlobUrl) {
+        var blob = dataUrlToBlob(dummyDataUrl);
+        currentDummyBlobUrl = URL.createObjectURL(blob);
+      }
+
+      return currentDummyBlobUrl;
+    }
+
     function saveDummy() {
       if (!dummyDataUrl) return;
 
+      if (isIOS) {
+        openDummyImage();
+        setStatus("画像を開きました。長押しまたは共有ボタンから保存してください。");
+        return;
+      }
+
+      var blobUrl = getDummyBlobUrl();
       var link = document.createElement("a");
-      link.href = dummyDataUrl;
+      link.href = blobUrl;
       link.download = dummyFileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+
+      setStatus("ダミー画像のダウンロードを開始しました。");
+    }
+
+    function openDummyImage() {
+      if (!dummyDataUrl) return;
+
+      var blobUrl = getDummyBlobUrl();
+      var opened = window.open(blobUrl, "_blank");
+
+      if (!opened) {
+        window.location.href = blobUrl;
+      }
+
+      setStatus("ダミー画像を新しい画面で開きました。");
+    }
+
+    function revokeDummyBlobUrl() {
+      if (currentDummyBlobUrl) {
+        URL.revokeObjectURL(currentDummyBlobUrl);
+        currentDummyBlobUrl = "";
+      }
     }
 
     function resetTool() {
       displayDataUrl = "";
       dummyDataUrl = "";
       dummyFileName = "saved-image.png";
+
+      revokeDummyBlobUrl();
 
       document.getElementById("displayInput").value = "";
       document.getElementById("dummyInput").value = "";
@@ -273,7 +411,13 @@
       document.getElementById("dummyGuard").removeAttribute("src");
       document.getElementById("placeholder").style.display = "grid";
       document.getElementById("saveButton").disabled = true;
-      document.getElementById("status").textContent = "リセットしました。";
+      document.getElementById("openButton").disabled = true;
+
+      setStatus("リセットしました。");
+    }
+
+    function setStatus(message) {
+      document.getElementById("status").textContent = message;
     }
 
     document.getElementById("protectedArea").addEventListener("contextmenu", function(event) {
@@ -283,6 +427,10 @@
 
     document.getElementById("protectedArea").addEventListener("dragstart", function(event) {
       event.preventDefault();
+    });
+
+    window.addEventListener("beforeunload", function() {
+      revokeDummyBlobUrl();
     });
   </script>
 </body>
